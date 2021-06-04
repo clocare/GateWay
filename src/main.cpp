@@ -11,19 +11,20 @@
 
 /*************** Global variables *************************/
 String serverAddress = "http://obscure-temple-49041.herokuapp.com/api";
-
 String ServerToken = "Bearer ";
 int port = 80;
 int httpCode;
 SoftwareSerial STM_Serial(STM_SERIAL_RX, STM_SERIAL_TX); // RX , TX
 String STM_CMD;
 String postEmpLoging = "{\"email\": \"eman@gmail.com\" , \"password\":\"123456\"}";
-StaticJsonDocument<2048> doc;
+StaticJsonDocument<512> doc;
 DeserializationError error;
 String NationalID, Password;
 String getUrl;
 char buffer[10];
-/**************** local proto types ***********************/
+HTTPClient http;
+WiFiClient client;
+/********************* local proto types ***********************/
 void WIFIConfigure(void);
 void SendPostRequest(String path, String contentType, String postData, bool withToken);
 void SendGetRequest(String path, String contentType, bool withToken);
@@ -38,16 +39,16 @@ void setup()
   Serial.begin(115200);
   STM_Serial.begin(115200);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  WIFIConfigure();
-
+  WIFIConfigure(); 
 }
-
 /********************* Loop ****************************/
 void loop()
 {
   if (STM_Serial.available())
   {
     STM_CMD = STM_Serial.readStringUntil('\n');
+    Serial.println();
+    Serial.println(STM_CMD);
     if (STM_CMD == "CHK_ID")
     {
       Process_PatientCheck();
@@ -93,9 +94,8 @@ void WIFIConfigure(void)
 
 void SendGetRequest(String path, String contentType, bool withToken)
 {
-  HTTPClient http;
-  WiFiClient client;
-  doc = nullptr;
+
+
   Serial.print("[HTTP] begin...\n");
   if (http.begin(client, path))
   { // HTTP
@@ -120,10 +120,12 @@ void SendGetRequest(String path, String contentType, bool withToken)
       if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)
       {
         String payload = http.getString();
-        Serial.println(payload);
+        doc.clear();
         error = deserializeJson(doc, payload);
         if (error)
           Serial.println("Couldnt extract JSON");
+        else 
+          serializeJsonPretty(doc , Serial);
       }
     }
     else
@@ -190,13 +192,15 @@ void Process_PaitentLogin()
 {
   doc["national_id"] = STM_Serial.readStringUntil('\n');
   doc["password"] = STM_Serial.readStringUntil('\n');
+
   String url = serverAddress + POST_LOGIN_PATIENT;
   String output;
   serializeJson(doc, output);
+  serializeJsonPretty(doc , Serial);
   SendPostRequest(url, "application/json", output, 0);
   if (httpCode == HTTP_CODE_OK && error == 0)
   {
-    STM_Serial.println("OK");
+    STM_Serial.println("OK.");
     Serial.println("OK");
     const char *localToken = doc["api_token"];
     ServerToken = "Bearer ";
@@ -307,7 +311,7 @@ void Process_Sensors()
   SendPostRequest(url, "application/json", output, 1);
   if (httpCode == HTTP_CODE_OK)
   {
-    STM_Serial.println("OK");
+    STM_Serial.println("OK.");
     Serial.println("OK");
   }
   else
