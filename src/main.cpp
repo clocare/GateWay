@@ -21,7 +21,7 @@ StaticJsonDocument<512> doc;
 DeserializationError error;
 String NationalID, Password;
 String getUrl;
-char buffer[10];
+char buffer[15];
 HTTPClient http;
 WiFiClient client;
 /********************* local proto types ***********************/
@@ -40,6 +40,9 @@ void setup()
   STM_Serial.begin(115200);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   WIFIConfigure(); 
+//  Serial.flush();
+//  STM_Serial.flush();
+  
 }
 /********************* Loop ****************************/
 void loop()
@@ -49,7 +52,11 @@ void loop()
     STM_CMD = STM_Serial.readStringUntil('\n');
     Serial.println();
     Serial.println(STM_CMD);
-    if (STM_CMD == "CHK_ID")
+    if (STM_CMD == "EMG")
+    {
+      // Send emergency request. 
+    }
+    else if (STM_CMD == "CHK_ID")
     {
       Process_PatientCheck();
     }
@@ -190,6 +197,7 @@ void SendPostRequest(String path, String contentType, String postData, bool with
 
 void Process_PaitentLogin()
 {
+  doc.clear();
   doc["national_id"] = STM_Serial.readStringUntil('\n');
   doc["password"] = STM_Serial.readStringUntil('\n');
 
@@ -248,16 +256,8 @@ void Process_PatientCheck()
   }
   else
   {
-    // Extract values
-    Serial.println(F("Response:"));
-    Serial.println(doc["name"].as<const char *>());
-    Serial.println(doc["national_id"].as<const char *>());
-    Serial.println(doc["phoneNumber"].as<const char *>());
-    Serial.println(doc["height"].as<int>(), 6);
-    Serial.println(doc["weight"].as<int>(), 6);
-    Serial.println(doc["bloodType"].as<const char *>());
     // Send to STM
-    STM_Serial.println("OK");
+    STM_Serial.println("OK.");
     STM_Serial.println(doc["name"].as<const char *>());
     STM_Serial.println(doc["national_id"].as<const char *>());
     STM_Serial.println(doc["phoneNumber"].as<const char *>());
@@ -273,14 +273,11 @@ void process_AddPatient()
   doc["national_id"] = STM_Serial.readStringUntil('\n');
   doc["name"] = STM_Serial.readStringUntil('\n');
   doc["arriving_date"] = STM_Serial.readStringUntil('\n');
-  STM_Serial.readBytesUntil('\n', buffer, sizeof(buffer));
-  doc["phone_number"] = atoi(buffer);
+  doc["phone_number"] = STM_Serial.readStringUntil('\n').toInt();
   doc["age"] = STM_Serial.readStringUntil('\n');
   doc["blood_type"] = STM_Serial.readStringUntil('\n');
-  STM_Serial.readBytesUntil('\n', buffer, sizeof(buffer));
-  doc["height"] = atoi(buffer);
-  STM_Serial.readBytesUntil('\n', buffer, sizeof(buffer));
-  doc["weight"] = atoi(buffer);
+  doc["height"] = STM_Serial.readStringUntil('\n').toInt();
+  doc["weight"] = STM_Serial.readStringUntil('\n').toInt();
   //serializeJsonPretty(doc, Serial);
   String url = serverAddress + POST_Add_PATIENT;
   String output;
@@ -299,15 +296,15 @@ void process_AddPatient()
 }
 void Process_Sensors()
 {
-  STM_Serial.readBytesUntil('\n', buffer, sizeof(buffer));
-  doc["temp"] = atof(buffer);
-  STM_Serial.readBytesUntil('\n', buffer, sizeof(buffer));
-  doc["spo2"] = atoi(buffer);
-  STM_Serial.readBytesUntil('\n', buffer, sizeof(buffer));
-  doc["heartRate"] = atoi(buffer);
+  doc.clear();
+  doc["temp"] = STM_Serial.readStringUntil('\n').toFloat();
+  doc["spo2"] = STM_Serial.readStringUntil('\n').toInt();
+  doc["heartRate"] = STM_Serial.readStringUntil('\n').toInt();
+
   String url = serverAddress + POST_SENSORS;
   String output;
   serializeJson(doc, output);
+  serializeJsonPretty(doc , Serial);
   SendPostRequest(url, "application/json", output, 1);
   if (httpCode == HTTP_CODE_OK)
   {
